@@ -1,0 +1,125 @@
+[package]
+name = "atta-channel"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[features]
+default = ["terminal"]
+terminal = []
+webhook = ["reqwest"]
+# HTTP-only channels
+telegram = ["reqwest"]
+dingtalk = ["reqwest"]
+qq = ["reqwest", "dep:tokio-tungstenite"]
+wati = ["reqwest"]
+mattermost = ["reqwest", "dep:tokio-tungstenite"]
+nextcloud-talk = ["reqwest"]
+clawdtalk = ["reqwest"]
+signal = ["reqwest"]
+whatsapp = ["reqwest"]
+whatsapp-storage = ["reqwest"]
+# WebSocket channels
+discord = ["reqwest", "dep:tokio-tungstenite"]
+slack = ["reqwest", "dep:tokio-tungstenite"]
+lark = ["reqwest", "dep:tokio-tungstenite"]
+nostr = ["dep:tokio-tungstenite", "dep:secp256k1", "dep:sha2", "dep:hex", "dep:aes", "dep:cbc", "dep:base64"]
+whatsapp-web = ["reqwest", "dep:tokio-tungstenite"]
+# Protocol-specific
+email = ["dep:lettre", "dep:async-imap", "dep:tokio-native-tls", "dep:async-native-tls"]
+irc = ["dep:tokio-tungstenite"]
+# Platform-specific
+imessage = []
+# Heavy deps
+matrix = ["reqwest"]
+mqtt = ["dep:rumqttc"]
+# Bundles
+channels-im = ["telegram", "discord", "slack"]
+channels-enterprise = ["slack", "lark", "dingtalk", "email", "mattermost"]
+channels-all = [
+    "channels-im", "channels-enterprise",
+    "qq", "irc", "signal", "whatsapp", "matrix", "nostr", "mqtt",
+    "wati", "nextcloud-talk", "clawdtalk",
+]
+
+[dependencies]
+atta-types = { workspace = true }
+atta-bus = { path = "../bus" }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+futures = { workspace = true }
+anyhow = { workspace = true }
+urlencoding = "2"
+
+[dependencies.reqwest]
+workspace = true
+optional = true
+
+[dependencies.tokio-tungstenite]
+version = "0.24"
+optional = true
+
+[dependencies.lettre]
+version = "0.11"
+features = ["tokio1-native-tls"]
+optional = true
+
+[dependencies.async-imap]
+version = "0.10"
+optional = true
+
+[dependencies.tokio-native-tls]
+version = "0.3"
+optional = true
+
+[dependencies.async-native-tls]
+version = "0.5"
+optional = true
+
+[dependencies.secp256k1]
+version = "0.29"
+features = ["global-context", "rand-std"]
+optional = true
+
+[dependencies.sha2]
+workspace = true
+optional = true
+
+[dependencies.hex]
+version = "0.4"
+optional = true
+
+[dependencies.aes]
+version = "0.8"
+optional = true
+
+[dependencies.cbc]
+version = "0.1"
+optional = true
+
+[dependencies.base64]
+version = "0.22"
+optional = true
+
+[dependencies.rumqttc]
+version = "0.24"
+optional = true
+
+[dev-dependencies]
+tokio = { workspace = true }
+wiremock = "=0.6.4"
+testcontainers = "0.23"
+
+[[test]]
+name = "channel_wiremock"
+required-features = ["telegram", "slack", "webhook", "discord", "dingtalk", "lark", "whatsapp", "mattermost", "matrix", "signal", "wati", "nextcloud-talk"]
+
+[[test]]
+name = "channel_testcontainers"
+required-features = ["mattermost"]

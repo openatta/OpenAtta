@@ -1,0 +1,38 @@
+id: daily_digest
+version: "1.0"
+name: "Daily Digest"
+description: "Generate a daily summary of activities and key metrics."
+
+initial_state: start
+states:
+  start:
+    type: start
+    transitions:
+      - to: gather
+        auto: true
+
+  gather:
+    type: agent
+    skill: research
+    on_enter:
+      - type: log
+        message: "Gathering daily activity data"
+    transitions:
+      - to: compile
+        auto: true
+
+  compile:
+    type: agent
+    skill: summarize
+    on_enter:
+      - type: log
+        message: "Compiling digest"
+    transitions:
+      - to: done
+        auto: true
+
+  done:
+    type: end
+    on_enter:
+      - type: publish_event
+        event_type: "atta.digest.ready"

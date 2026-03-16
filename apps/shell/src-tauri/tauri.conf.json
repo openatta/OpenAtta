@@ -1,0 +1,54 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicegram/nicegram-schemas/main/tauri-v2/schema.json",
+  "productName": "AttaOS Shell",
+  "version": "0.1.0",
+  "identifier": "com.attaos.shell",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "AttaOS",
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false,
+        "visible": false
+      },
+      {
+        "label": "updater",
+        "title": "AttaOS Updater",
+        "url": "/updater.html",
+        "width": 480,
+        "height": 360,
+        "resizable": false,
+        "fullscreen": false,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://localhost:* https://localhost:* https://releases.attaos.dev https://api.github.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/anthropics/attaos/releases/latest/download/latest.json"
+      ],
+      "pubkey": "",
+      "_pubkey_note": "Generate a real signing key with: tauri signer generate -w ~/.tauri/attaos.key. Then set TAURI_SIGNING_PRIVATE_KEY env var for builds and paste the public key into pubkey above."
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

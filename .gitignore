@@ -1,0 +1,7 @@
+/target
+webui/node_modules/
+apps/*/node_modules/
+apps/shell/dist/
+apps/updater/dist/
+apps/console/dist/
+.fastembed_cache/

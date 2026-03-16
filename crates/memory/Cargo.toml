@@ -1,0 +1,29 @@
+[package]
+name = "atta-memory"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[features]
+default = []
+fastembed = ["dep:fastembed"]
+postgres = []
+
+[dependencies]
+atta-types = { workspace = true }
+async-trait = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+sqlx = { workspace = true }
+anyhow = { workspace = true }
+sha2 = { workspace = true }
+hex = "0.4"
+
+# Optional: local embedding
+fastembed = { version = "4", optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

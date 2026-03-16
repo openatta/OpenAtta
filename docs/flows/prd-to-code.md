@@ -1,0 +1,233 @@
+# PRD-to-Code Flow
+
+End-to-end pipeline that transforms product requirements into verified code.
+
+## Pipeline Stages
+
+```
+Start → PRD Writer → [Review PRD] → Spec Writer → [Review Spec] → Task Planner → Code Generator → Spec Verifier → Code Fixer → Done
+```
+
+| Stage | Skill | Type | Description |
+|-------|-------|------|-------------|
+| write_prd | atta-prd-writer | agent | Generate structured PRD from requirements |
+| review_prd | — | gate | Human reviews PRD (product_owner, 24h timeout) |
+| write_spec | atta-spec-writer | agent | Generate technical spec from approved PRD |
+| review_spec | — | gate | Human reviews spec (tech_lead, 24h timeout) |
+| plan_tasks | atta-task-planner | agent | Decompose spec into implementation tasks |
+| generate_code | atta-code-generator | agent | Implement code from task plan |
+| verify | atta-spec-verifier | agent | Verify implementation against spec |
+| fix_code | atta-code-fixer | agent | Fix issues found during verification |
+
+## Usage
+
+### Via Chat (WebUI or CLI)
+
+The simplest way to trigger the flow is through chat:
+
+```
+User: I want to build a task management API with user auth and CRUD operations
+```
+
+The agent uses `atta-start-flow` tool to launch the pipeline:
+
+```json
+{
+  "action": "start",
+  "flow_id": "prd_to_code",
+  "input": {
+    "requirements": "Task management API with user auth and CRUD operations",
+    "workspace": "/path/to/project"
+  }
+}
+```
+
+### Via API (Direct)
+
+```bash
+# Start the flow
+curl -X POST http://localhost:3000/api/v1/tasks \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "flow_id": "prd_to_code",
+    "input": {
+      "requirements": "Build a task management API",
+      "workspace": "/path/to/project"
+    }
+  }'
+
+# Check task status
+curl http://localhost:3000/api/v1/tasks/{task_id}
+```
+
+### Via Chat with flow_id (Client SDK)
+
+External clients can bypass intent recognition by specifying `flow_id` directly:
+
+```json
+POST /api/v1/chat
+{
+  "message": "Build a task management API with auth",
+  "flow_id": "prd_to_code"
+}
+```
+
+## Gate (Approval) Interaction
+
+When the flow reaches a gate state (review_prd, review_spec), it pauses and waits for human decision.
+
+### In WebUI
+
+The Approvals page shows pending gates. Users can approve, request revision, or deny.
+
+### In Chat
+
+When a gate is reached, the chat session bound to the task receives a notification:
+
+```
+[System] PRD ready for review. Please review and respond with:
+  - "approve" to continue
+  - "revise" to request changes
+  - "deny" to stop the pipeline
+```
+
+### Via API
+
+```bash
+# List pending approvals
+curl http://localhost:3000/api/v1/approvals?status=pending
+
+# Approve
+curl -X POST http://localhost:3000/api/v1/approvals/{id}/approve \
+  -d '{"comment": "Looks good"}'
+
+# Request revision
+curl -X POST http://localhost:3000/api/v1/approvals/{id}/deny \
+  -d '{"comment": "Please add more detail on auth"}'
+```
+
+## Document Formats
+
+### PRD Format (atta-prd/1.0)
+
+Compatible with AttaStudio's PRD editor plugin.
+
+```json
+{
+  "$schema": "atta-prd/1.0",
+  "meta": {
+    "title": "Product Title",
+    "status": "draft|review|approved|archived",
+    "owner": "string",
+    "priority": "P0|P1|P2|P3",
+    "tags": ["string"],
+    "created": "ISO timestamp",
+    "updated": "ISO timestamp"
+  },
+  "sections": [
+    {
+      "id": "unique_id",
+      "type": "heading|text|list|checklist|table|custom",
+      "title": "Section Title",
+      "content": "Markdown content"
+    }
+  ]
+}
+```
+
+### Spec Format (atta-spec/1.0)
+
+Compatible with AttaStudio's Spec editor plugin.
+
+```json
+{
+  "$schema": "atta-spec/1.0",
+  "meta": {
+    "title": "Spec Title",
+    "status": "draft|review|approved|archived",
+    "source": {
+      "prd": "relative/path/to.prd.json",
+      "features": ["feature1"]
+    },
+    "tags": ["string"],
+    "created": "ISO timestamp",
+    "updated": "ISO timestamp"
+  },
+  "sections": [
+    {
+      "id": "unique_id",
+      "type": "heading|text|list|checklist|table|code|diagram|custom",
+      "title": "Section Title",
+      "content": "Markdown or code content",
+      "language": "rust|typescript|sql|json"
+    }
+  ]
+}
+```
+
+## Error Handling
+
+- **Max retries**: 2 per agent state
+- **Retry states**: All agent states (write_prd through fix_code)
+- **Fallback**: done_timeout (graceful termination)
+- **Gate timeout**: 24h for both PRD and Spec reviews
+
+## Extending the Flow
+
+### Adding a Deploy Stage
+
+Copy `prd-to-code.yaml` and add states:
+
+```yaml
+  deploy:
+    type: agent
+    skill: atta-deploy
+    transitions:
+      - to: done
+        auto: true
+```
+
+### Custom Gate Roles
+
+Modify `gate.approver_role` to match your team's roles:
+
+```yaml
+  review_prd:
+    type: gate
+    gate:
+      approver_role: product_manager  # your role name
+```
+
+## Client Integration
+
+### AttaStudio
+
+AttaStudio's PRD/SPEC editor plugins read and write the same `atta-prd/1.0` and `atta-spec/1.0` formats. Files generated by this flow can be opened directly in AttaStudio for manual editing and vice versa.
+
+**Workflow**:
+1. User creates a PRD in AttaStudio's PRD editor
+2. PRD file is committed to the project
+3. Flow is triggered with the PRD path as input
+4. Agent reads the PRD and generates a Spec
+5. Spec appears in AttaStudio's Spec editor for review
+6. After approval, code is generated
+
+### Custom Clients
+
+Any HTTP client can drive the flow:
+
+1. `POST /api/v1/tasks` with `flow_id: "prd_to_code"` — starts the flow
+2. Poll `GET /api/v1/tasks/{id}` for status
+3. When status is `waiting_approval`, check `GET /api/v1/approvals?task_id={id}`
+4. Approve/deny via approval API
+5. When status is `completed`, read output from task response
+
+Or use the Chat API with `flow_id` for a conversational experience:
+
+```json
+POST /api/v1/chat
+{
+  "message": "Build a REST API for inventory management",
+  "flow_id": "prd_to_code"
+}
+```

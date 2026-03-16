@@ -1,0 +1,271 @@
+{
+  "description": "OpenAtta REST API contract fixtures. Each case describes the expected HTTP contract for an endpoint.",
+  "cases": [
+    {
+      "name": "health endpoint returns ok with status and version",
+      "method": "GET",
+      "path": "/api/v1/health",
+      "expected_status": 200,
+      "expected_body": {
+        "status": "ok"
+      },
+      "body_contains": ["status", "version"]
+    },
+    {
+      "name": "system health endpoint returns ok",
+      "method": "GET",
+      "path": "/api/v1/system/health",
+      "expected_status": 200,
+      "expected_body": {
+        "status": "ok"
+      },
+      "body_contains": ["status", "version"]
+    },
+    {
+      "name": "system config endpoint returns mode and version",
+      "method": "GET",
+      "path": "/api/v1/system/config",
+      "expected_status": 200,
+      "body_contains": ["mode", "version"]
+    },
+    {
+      "name": "system metrics endpoint returns running status",
+      "method": "GET",
+      "path": "/api/v1/system/metrics",
+      "expected_status": 200,
+      "body_contains": ["version", "mode", "status", "uptime_timestamp"]
+    },
+    {
+      "name": "list tasks returns array",
+      "method": "GET",
+      "path": "/api/v1/tasks",
+      "expected_status": 200,
+      "expected_type": "array"
+    },
+    {
+      "name": "list flows returns array",
+      "method": "GET",
+      "path": "/api/v1/flows",
+      "expected_status": 200,
+      "expected_type": "array"
+    },
+    {
+      "name": "list tools returns array",
+      "method": "GET",
+      "path": "/api/v1/tools",
+      "expected_status": 200,
+      "expected_type": "array"
+    },
+    {
+      "name": "list skills returns array",
+      "method": "GET",
+      "path": "/api/v1/skills",
+      "expected_status": 200,
+      "expected_type": "array"
+    },
+    {
+      "name": "list channels returns data wrapper with array",
+      "method": "GET",
+      "path": "/api/v1/channels",
+      "expected_status": 200,
+      "body_contains": ["data"]
+    },
+    {
+      "name": "list mcp servers returns servers array",
+      "method": "GET",
+      "path": "/api/v1/mcp/servers",
+      "expected_status": 200,
+      "body_contains": ["servers"]
+    },
+    {
+      "name": "list nodes returns array",
+      "method": "GET",
+      "path": "/api/v1/nodes",
+      "expected_status": 200,
+      "expected_type": "array"
+    },
+    {
+      "name": "list approvals returns array",
+      "method": "GET",
+      "path": "/api/v1/approvals",
+      "expected_status": 200,
+      "expected_type": "array"
+    },
+    {
+      "name": "audit query returns data wrapper with array",
+      "method": "GET",
+      "path": "/api/v1/audit",
+      "expected_status": 200,
+      "body_contains": ["data"]
+    },
+    {
+      "name": "security policy returns data wrapper with autonomy_level",
+      "method": "GET",
+      "path": "/api/v1/security/policy",
+      "expected_status": 200,
+      "body_contains": ["data"]
+    },
+    {
+      "name": "create flow returns 201 with id and version",
+      "method": "POST",
+      "path": "/api/v1/flows",
+      "request_body": {
+        "id": "contract_test_flow",
+        "version": "1.0",
+        "initial_state": "start",
+        "states": {
+          "start": { "type": "start", "transitions": [{"to": "end", "auto": true}] },
+          "end": { "type": "end", "transitions": [] }
+        }
+      },
+      "expected_status": 201,
+      "body_contains": ["id", "version", "initial_state", "states"]
+    },
+    {
+      "name": "create flow with no end state returns 400",
+      "method": "POST",
+      "path": "/api/v1/flows",
+      "request_body": {
+        "id": "bad_no_end",
+        "version": "1.0",
+        "initial_state": "start",
+        "states": {
+          "start": { "type": "start", "transitions": [] }
+        }
+      },
+      "expected_status": 400,
+      "body_contains": ["error"]
+    },
+    {
+      "name": "create flow with no start state returns 400",
+      "method": "POST",
+      "path": "/api/v1/flows",
+      "request_body": {
+        "id": "bad_no_start",
+        "version": "1.0",
+        "initial_state": "orphan",
+        "states": {
+          "end": { "type": "end", "transitions": [] }
+        }
+      },
+      "expected_status": 400,
+      "body_contains": ["error"]
+    },
+    {
+      "name": "get non-existent flow returns 404 with error shape",
+      "method": "GET",
+      "path": "/api/v1/flows/nonexistent-flow-id",
+      "expected_status": 404,
+      "body_contains": ["error"]
+    },
+    {
+      "name": "get non-existent task returns 404 with error shape",
+      "method": "GET",
+      "path": "/api/v1/tasks/00000000-0000-0000-0000-000000000000",
+      "expected_status": 404,
+      "body_contains": ["error"]
+    },
+    {
+      "name": "get task with invalid uuid returns 400 with error shape",
+      "method": "GET",
+      "path": "/api/v1/tasks/not-a-uuid",
+      "expected_status": 400,
+      "body_contains": ["error"]
+    },
+    {
+      "name": "get non-existent tool returns 404 with error shape",
+      "method": "GET",
+      "path": "/api/v1/tools/no_such_tool",
+      "expected_status": 404,
+      "body_contains": ["error"]
+    },
+    {
+      "name": "get non-existent approval returns 404 with error shape",
+      "method": "GET",
+      "path": "/api/v1/approvals/00000000-0000-0000-0000-000000000000",
+      "expected_status": 404,
+      "body_contains": ["error"]
+    },
+    {
+      "name": "get non-existent node returns 404 with error shape",
+      "method": "GET",
+      "path": "/api/v1/nodes/ghost-node-id",
+      "expected_status": 404,
+      "body_contains": ["error"]
+    },
+    {
+      "name": "register mcp sse server returns 201 with name transport status",
+      "method": "POST",
+      "path": "/api/v1/mcp/servers",
+      "request_body": {
+        "name": "test-sse-server",
+        "transport": "sse",
+        "url": "http://localhost:9999/sse",
+        "args": []
+      },
+      "expected_status": 201,
+      "body_contains": ["name", "transport", "status"]
+    },
+    {
+      "name": "register mcp stdio without command returns 400",
+      "method": "POST",
+      "path": "/api/v1/mcp/servers",
+      "request_body": {
+        "name": "bad-stdio",
+        "transport": "stdio",
+        "args": []
+      },
+      "expected_status": 400,
+      "body_contains": ["error"]
+    },
+    {
+      "name": "channel not found returns 404 with error shape",
+      "method": "GET",
+      "path": "/api/v1/channels/ghost-channel/health",
+      "expected_status": 404,
+      "body_contains": ["error"]
+    },
+    {
+      "name": "security policy update with zero max_calls returns 400",
+      "method": "PUT",
+      "path": "/api/v1/security/policy",
+      "request_body": {
+        "autonomy_level": "supervised",
+        "max_calls_per_minute": 0,
+        "command_allowlist": [],
+        "forbidden_paths": [],
+        "allowed_network_hosts": [],
+        "require_approval_for": [],
+        "tool_profile": "full"
+      },
+      "expected_status": 400,
+      "body_contains": ["error"]
+    }
+  ],
+  "error_contract": {
+    "description": "All error responses MUST conform to this shape",
+    "shape": {
+      "error": {
+        "code": "<string>",
+        "message": "<string>"
+      }
+    },
+    "known_codes": ["not_found", "validation_error", "internal_error", "not_implemented"]
+  },
+  "task_contract": {
+    "description": "Task objects returned by the API MUST contain these fields",
+    "required_fields": ["id", "flow_id", "status", "current_state", "input", "created_at", "updated_at", "created_by"]
+  },
+  "flow_contract": {
+    "description": "Flow definition objects returned by the API MUST contain these fields",
+    "required_fields": ["id", "version", "initial_state", "states"]
+  },
+  "approval_contract": {
+    "description": "Approval objects returned by the API MUST contain these fields",
+    "required_fields": ["id", "task_id", "status", "created_at", "approver_role", "context"]
+  },
+  "node_contract": {
+    "description": "Node objects returned by the API MUST contain these fields",
+    "required_fields": ["id", "hostname", "status", "capacity", "last_heartbeat"]
+  }
+}

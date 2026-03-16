@@ -1,0 +1,108 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/types",
+    "crates/bus",
+    "crates/store",
+    "crates/auth",
+    "crates/audit",
+    "crates/core",
+    "crates/agent",
+    "crates/memory",
+    "crates/server",
+    "crates/cli",
+    "crates/secret",
+    "crates/mcp",
+    "crates/channel",
+    "crates/security",
+    "crates/tools",
+    "apps/shell/src-tauri",
+]
+
+[workspace.package]
+license = "Apache-2.0"
+license-file = "LICENSE"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# Web
+axum = { version = "0.7", features = ["ws"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yml = "0.0.12"
+
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "postgres", "uuid", "chrono", "json"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Identity & Time
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+
+# Async utilities
+async-nats = "0.38"
+
+# Crypto & Security
+aes-gcm = "0.10"
+hkdf = "0.12"
+sha2 = "0.10"
+rand = "0.8"
+ed25519-dalek = "2"
+secrecy = "0.10"
+
+# Package
+zip = "2"
+semver = "1"
+
+# Scheduling
+cron = "0.13"
+
+# Config
+config = "0.14"
+
+# Auth
+openidconnect = "4"
+jsonwebtoken = "9"
+
+# System info
+sysinfo = "0.33"
+
+# Internal crates
+atta-types = { path = "crates/types" }
+atta-bus = { path = "crates/bus" }
+atta-store = { path = "crates/store" }
+atta-auth = { path = "crates/auth" }
+atta-audit = { path = "crates/audit" }
+atta-core = { path = "crates/core" }
+atta-agent = { path = "crates/agent" }
+atta-memory = { path = "crates/memory" }
+atta-secret = { path = "crates/secret" }
+atta-mcp = { path = "crates/mcp" }
+atta-channel = { path = "crates/channel" }
+atta-security = { path = "crates/security" }
+atta-tools = { path = "crates/tools" }
+bs58 = "0.5"
+regex = "1"
+glob = "0.3"
+tokio-util = "0.7"
+tokio-stream = { version = "0.1", features = ["sync"] }
+url = "2"
+

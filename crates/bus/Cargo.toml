@@ -1,0 +1,30 @@
+[package]
+name = "atta-bus"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[features]
+default = ["inproc"]
+inproc = []
+nats = ["dep:async-nats"]
+
+[dependencies]
+atta-types = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+tracing = { workspace = true }
+serde_json = { workspace = true }
+async-stream = "0.3"
+async-nats = { workspace = true, optional = true }
+
+[dev-dependencies]
+uuid = { workspace = true }
+tokio = { workspace = true }
+futures = { workspace = true }
+async-nats = { workspace = true }
+
+[[test]]
+name = "nats_tests"
+required-features = ["nats"]

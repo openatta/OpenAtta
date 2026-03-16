@@ -1,0 +1,25 @@
+[package]
+name = "atta-cli"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[[bin]]
+name = "attacli"
+path = "src/main.rs"
+
+[dependencies]
+atta-types = { workspace = true }
+tokio = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yml = { workspace = true }
+anyhow = { workspace = true }
+reqwest = { workspace = true }
+futures = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true }

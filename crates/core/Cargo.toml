@@ -1,0 +1,51 @@
+[package]
+name = "atta-core"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+atta-types = { workspace = true }
+atta-bus = { path = "../bus" }
+atta-store = { path = "../store" }
+atta-auth = { path = "../auth" }
+atta-audit = { path = "../audit" }
+atta-agent = { path = "../agent" }
+atta-mcp = { path = "../mcp" }
+atta-channel = { path = "../channel", default-features = false }
+atta-memory = { path = "../memory" }
+atta-security = { path = "../security" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yml = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+tower-http = { version = "0.6", features = ["fs", "cors"] }
+async-stream = "0.3"
+regex = { workspace = true }
+jsonwebtoken = { workspace = true }
+sha2 = { workspace = true }
+cron = { workspace = true }
+tokio-util = { workspace = true }
+tokio-stream = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+tower = { version = "0.5", features = ["util"] }
+http = "1"
+async-trait = { workspace = true }
+atta-bus = { path = "../bus", features = ["inproc"] }
+atta-store = { path = "../store", features = ["sqlite"] }
+atta-auth = { path = "../auth", features = ["allow_all"] }
+atta-audit = { path = "../audit" }
+atta-agent = { path = "../agent" }
+atta-memory = { path = "../memory" }
+atta-security = { path = "../security" }

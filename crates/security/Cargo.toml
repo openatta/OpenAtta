@@ -1,0 +1,22 @@
+[package]
+name = "atta-security"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+atta-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+regex = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+uuid = { workspace = true }
+reqwest = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

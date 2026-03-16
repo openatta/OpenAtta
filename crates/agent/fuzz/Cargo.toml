@@ -1,0 +1,29 @@
+[package]
+name = "atta-agent-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+atta-agent = { path = ".." }
+atta-types = { path = "../../types" }
+serde_json = "1"
+
+[[bin]]
+name = "fuzz_guard_patterns"
+path = "fuzz_targets/fuzz_guard_patterns.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_tool_params"
+path = "fuzz_targets/fuzz_tool_params.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_xml_dispatch"
+path = "fuzz_targets/fuzz_xml_dispatch.rs"
+doc = false

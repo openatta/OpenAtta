@@ -1,0 +1,82 @@
+id: bug_triage
+version: "1.0"
+name: "Bug Triage"
+description: "Diagnose a bug, assess severity, gate for approval if high-risk fix, then apply."
+
+initial_state: start
+states:
+  start:
+    type: start
+    transitions:
+      - to: diagnose
+        auto: true
+
+  diagnose:
+    type: agent
+    skill: fix-bug
+    on_enter:
+      - type: log
+        message: "Diagnosing reported bug"
+      - type: set_variable
+        key: stage
+        value: "diagnose"
+    transitions:
+      - to: approval
+        when: "has_high_risk_tools"
+      - to: fix
+        auto: true
+
+  approval:
+    type: gate
+    gate:
+      approver_role: developer
+      timeout: "12h"
+      on_timeout: done_skipped
+    transitions:
+      - to: fix
+        when: "approved"
+      - to: done_skipped
+        when: "denied"
+
+  fix:
+    type: agent
+    skill: fix-bug
+    on_enter:
+      - type: set_variable
+        key: stage
+        value: "fix"
+    transitions:
+      - to: verify
+        auto: true
+
+  verify:
+    type: agent
+    skill: code-review
+    on_enter:
+      - type: set_variable
+        key: stage
+        value: "verify"
+    transitions:
+      - to: done
+        auto: true
+
+  done:
+    type: end
+    on_enter:
+      - type: publish_event
+        event_type: "atta.bug.fixed"
+
+  done_skipped:
+    type: end
+    on_enter:
+      - type: set_variable
+        key: result
+        value: "skipped"
+
+on_error:
+  max_retries: 3
+  retry_states:
+    - diagnose
+    - fix
+    - verify
+  fallback: done_skipped

@@ -1,0 +1,56 @@
+id: code_review
+version: "1.0"
+name: "Code Review"
+description: "Automated code review: analyze changes, gate for human approval, then apply fixes."
+
+initial_state: start
+states:
+  start:
+    type: start
+    transitions:
+      - to: analyze
+        auto: true
+
+  analyze:
+    type: agent
+    skill: code-review
+    on_enter:
+      - type: log
+        message: "Starting code analysis"
+    transitions:
+      - to: review_gate
+        when: "has_high_risk_tools"
+      - to: done
+        auto: true
+
+  review_gate:
+    type: gate
+    gate:
+      approver_role: developer
+      timeout: "24h"
+      on_timeout: done
+    transitions:
+      - to: apply_fixes
+        when: "approved"
+      - to: done
+        when: "denied"
+
+  apply_fixes:
+    type: agent
+    skill: fix-bug
+    on_enter:
+      - type: log
+        message: "Applying approved fixes"
+    transitions:
+      - to: done
+        auto: true
+
+  done:
+    type: end
+
+on_error:
+  max_retries: 2
+  retry_states:
+    - analyze
+    - apply_fixes
+  fallback: done

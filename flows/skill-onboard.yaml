@@ -1,0 +1,60 @@
+id: skill_onboard
+version: "1.0"
+name: "Skill Onboarding"
+description: "Find suitable skills, review them, and register with approval."
+
+initial_state: start
+states:
+  start:
+    type: start
+    transitions:
+      - to: discover
+        auto: true
+
+  discover:
+    type: agent
+    skill: find-skills
+    on_enter:
+      - type: log
+        message: "Discovering skills for the request"
+    transitions:
+      - to: review_gate
+        auto: true
+
+  review_gate:
+    type: gate
+    gate:
+      approver_role: admin
+      timeout: "48h"
+      on_timeout: done_timeout
+    transitions:
+      - to: create
+        when: "approved"
+      - to: done_denied
+        when: "denied"
+
+  create:
+    type: agent
+    skill: skill-creator
+    on_enter:
+      - type: log
+        message: "Creating new skill definition"
+    transitions:
+      - to: done
+        auto: true
+
+  done:
+    type: end
+    on_enter:
+      - type: publish_event
+        event_type: "atta.skill.onboarded"
+
+  done_denied:
+    type: end
+
+  done_timeout:
+    type: end
+    on_enter:
+      - type: set_variable
+        key: result
+        value: "timeout"

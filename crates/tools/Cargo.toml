@@ -1,0 +1,37 @@
+[package]
+name = "atta-tools"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[features]
+default = []
+web = ["reqwest"]
+memory = ["atta-memory"]
+cron = []
+browser = []
+browser-chromium = ["headless_chrome", "base64"]
+browser-cdp = ["browser", "dep:tokio-tungstenite", "dep:futures", "base64", "reqwest"]
+
+[dependencies]
+atta-types = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+glob = { workspace = true }
+
+# Optional deps
+reqwest = { workspace = true, optional = true }
+atta-memory = { path = "../memory", optional = true }
+headless_chrome = { version = "1", optional = true }
+base64 = { version = "0.22", optional = true }
+tokio-tungstenite = { version = "0.24", optional = true }
+futures = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,0 +1,42 @@
+id: research_report
+version: "1.0"
+name: "Research Report"
+description: "Research a topic, summarize findings, and produce a structured report."
+
+initial_state: start
+states:
+  start:
+    type: start
+    transitions:
+      - to: research
+        auto: true
+
+  research:
+    type: agent
+    skill: research
+    on_enter:
+      - type: log
+        message: "Starting research phase"
+      - type: set_variable
+        key: phase
+        value: "research"
+    transitions:
+      - to: summarize
+        auto: true
+
+  summarize:
+    type: agent
+    skill: summarize
+    on_enter:
+      - type: set_variable
+        key: phase
+        value: "summarize"
+    transitions:
+      - to: done
+        auto: true
+
+  done:
+    type: end
+    on_enter:
+      - type: publish_event
+        event_type: "atta.report.completed"

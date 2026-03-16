@@ -1,0 +1,19 @@
+[package]
+name = "atta-auth"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[features]
+default = ["allow_all"]
+allow_all = []
+rbac = ["dep:atta-store"]
+
+[dependencies]
+atta-types = { workspace = true }
+atta-store = { path = "../store", optional = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

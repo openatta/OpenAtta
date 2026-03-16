@@ -1,6 +1,8 @@
 # Client-Server Architecture
 
-AttaOS 采用 client-server 架构，三个独立二进制各司其职。
+Version: v0.1.0
+
+OpenAtta 采用 client-server 架构，三个独立二进制各司其职。
 
 ## 二进制
 
@@ -8,8 +10,7 @@ AttaOS 采用 client-server 架构，三个独立二进制各司其职。
 |--------|-------|------|
 | `attaos` | `crates/server` | 核心服务守护进程：HTTP API + WebUI + Agent 执行 |
 | `attacli` | `crates/cli` | 轻量 CLI 客户端：通过 HTTP/SSE 与 attaos 通信 |
-| `attash` | `apps/shell/src-tauri` | 桌面 Shell：Tauri WebView + 原生系统托盘 |
-| `atta-updater` | `apps/updater/src-tauri` | 自动更新器 |
+| `attash` | `apps/shell/src-tauri` | 桌面 Shell：Tauri v2 WebView + 原生系统托盘 + 自动更新 |
 
 ## 架构图
 
@@ -38,9 +39,15 @@ AttaOS 采用 client-server 架构，三个独立二进制各司其职。
 
 ## 通信协议
 
-- **CRUD 操作**：标准 REST API（`GET /api/v1/tasks`、`POST /api/v1/skills` 等）
+| 协议 | 用途 | 端点 |
+|------|------|------|
+| **REST** | CRUD 操作 | `GET/POST/PUT/DELETE /api/v1/*` |
+| **SSE** | 流式聊天 | `POST /api/v1/chat` |
+| **WebSocket** | 实时事件推送 | `/api/v1/ws`（带认证验证） |
+
+- **CRUD 操作**：标准 REST API（`GET /api/v1/tasks`、`POST /api/v1/skills` 等），所有端点均通过 `check_authz` 进行权限检查
 - **流式聊天**：`POST /api/v1/chat` → SSE 流（`ChatEvent` 事件）
-- **实时事件**：WebSocket（`/api/v1/ws`）— 任务状态变更、Agent Delta 等
+- **实时事件**：WebSocket（`/api/v1/ws`）— 任务状态变更、Agent Delta 等，升级前验证认证
 
 ## 自动启动
 
@@ -88,9 +95,21 @@ data: {"type":"done","data":{"iterations":2}}
 | EventBus | InProcBus | NatsBus |
 | StateStore | SqliteStore | PostgresStore |
 | Authz | AllowAll | RBACAuthz |
+| AuditSink | NoopAudit | AuditStore |
 
 Features 仅在 `atta-server` crate 上设置：
 ```bash
 cargo build -p atta-server --features desktop   # 默认
 cargo build -p atta-server --features enterprise
 ```
+
+## CORS
+
+服务端通过 `tower-http::cors::CorsLayer` 配置跨域策略，允许 attash WebView 和外部客户端正常访问 API。
+
+## 安全
+
+- 所有 API 端点通过 `check_authz` 进行权限验证
+- WebSocket 升级前进行认证检查
+- Task 操作使用乐观锁（version 字段）防止并发冲突
+- 子进程环境变量通过白名单（`ATTA_HOME`、`ATTA_PORT`、`ATTA_LOG`、`ATTA_LOG_LEVEL`、`ATTA_DATA_DIR`）进行清洗

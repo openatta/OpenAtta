@@ -1,65 +1,67 @@
-# AttaOS Usage Guide
+# OpenAtta Usage Guide
 
-Status: v0.4
+Version: v0.1.0
 
 ---
 
 ## Prerequisites
 
 - Rust toolchain (rustup, cargo)
-- Node.js >= 18 (for Tauri apps)
-- At least one LLM API key: `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`
+- Node.js >= 18 (for WebUI and Tauri Shell)
+- At least one LLM API key: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `DEEPSEEK_API_KEY`
 
 ---
 
 ## Build
 
 ```bash
-# Build all (excluding Tauri apps)
-cargo build --workspace --exclude atta-console --exclude atta-updater
+# Build all (excluding Tauri Shell)
+cargo build --workspace --exclude atta-shell
 
-# Build Desktop profile (default)
-cargo build --features desktop
+# Build server — Desktop profile (default)
+cargo build -p atta-server --features desktop
 
-# Build Enterprise profile
-cargo build --features enterprise
+# Build server — Enterprise profile
+cargo build -p atta-server --features enterprise
 
-# Build with extra channel support
-cargo build --features "desktop,terminal-channel,webhook-channel"
+# Build CLI client
+cargo build -p atta-cli
 
-# Build Tauri Console
-cd apps/console && npm install && npx tauri build
+# Build WebUI
+cd webui && npm install && npx vite build
 
-# Build Tauri Updater
-cd apps/updater && npm install && npm run build && npx tauri build
+# Build Tauri Shell
+cd apps/shell && npm install && npx tauri build
 ```
 
 ---
 
 ## Binaries
 
-| Binary | Description |
-|--------|-------------|
-| `attaos` | Main CLI entry point |
-| `atta-tray` | System tray standalone (Enterprise) |
-| `atta-console` | Tauri management console |
-| `atta-updater` | Tauri update checker/installer |
+| Binary | Crate | Description |
+|--------|-------|-------------|
+| `attaos` | `crates/server` | Core server daemon: HTTP API + WebUI + Agent execution |
+| `attacli` | `crates/cli` | Lightweight CLI client: HTTP/SSE communication |
+| `attash` | `apps/shell/src-tauri` | Desktop Shell: Tauri WebView + native system tray + auto-updater |
 
 ---
 
 ## CLI Commands
 
-### `attaos run` — Start Server
+### `attaos` — Server
 
 ```bash
 # Desktop mode (default), port 3000
-attaos run
-
-# Custom port
-attaos run --port 8080
+attaos --port 3000
 
 # Enterprise mode
-attaos run --mode enterprise --port 8080
+attaos --mode enterprise --port 8080
+
+# Custom home directory
+attaos --home /path/to/atta-data
+
+# Skip update check on startup
+attaos --skip-update-check
 ```
 
 The server starts:
@@ -68,119 +70,45 @@ The server starts:
 - WebUI at `http://127.0.0.1:{port}/`
 - CoreCoordinator event loop (subscribes to EventBus)
 
-### `attaos launch` — Start with Update Check
+### `attacli` — Client
 
 ```bash
-# Check for updates, then start server
-attaos launch
+# Check server status
+attacli status
 
-# Custom port
-attaos launch --port 8080
+# Interactive chat
+attacli chat
 
-# Skip update check
-attaos launch --skip-update-check
+# Task management
+attacli task list
+attacli task create --flow-id code_review --input '{"repo":"myorg/myrepo"}'
+attacli task get <task-uuid>
+
+# Flow management
+attacli flow list
+attacli flow get <flow-id>
+
+# Skill management
+attacli skill list
+attacli skill get <skill-id>
+attacli skill run <skill-id> --input "Write a blog post about Rust"
+
+# Tool management
+attacli tool list
+attacli tool get <tool-name>
+
+# MCP server management
+attacli mcp list
+attacli mcp get <server-name>
+
+# Approval management
+attacli approval list
+attacli approval approve <approval-id>
+attacli approval deny <approval-id>
+
+# System metrics
+attacli metrics
 ```
-
-Behavior:
-1. Queries GitHub Releases API for latest version
-2. If newer version found → spawns `atta-updater` and exits
-3. If up-to-date or check fails → falls through to `run` in desktop mode
-
-### `attaos chat` — Interactive Chat
-
-```bash
-# Terminal chat (default)
-attaos chat
-
-# Specify channel type
-attaos chat --channel terminal
-```
-
-Starts a direct agent conversation loop. The agent has access to all registered tools.
-
-### `attaos channels` — List Available Channels
-
-```bash
-attaos channels
-```
-
-### `attaos task` — Task Management
-
-```bash
-# List all tasks
-attaos task list
-
-# Create a task from a Flow definition
-attaos task create --flow-id dev_pr_flow --input '{"repo":"myorg/myrepo"}'
-
-# Get task details
-attaos task get <task-uuid>
-```
-
-### `attaos skill` — Skill Management
-
-```bash
-# List registered skills
-attaos skill list
-
-# View skill details (JSON)
-attaos skill get <skill-id>
-
-# Run a skill directly
-attaos skill run <skill-id> --input "Write a blog post about Rust"
-
-# Run with JSON variables
-attaos skill run <skill-id> --input '{"topic":"Rust","length":"short"}'
-```
-
----
-
-## System Tray
-
-### Desktop Mode (in-process)
-The tray starts automatically when `attaos run` is called (planned integration).
-
-### Enterprise Mode (standalone)
-```bash
-# Set port via environment variable
-ATTA_PORT=3000 atta-tray
-```
-
-Menu items:
-- **管理控制台** — launches `atta-console`
-- **检查更新** — launches `atta-updater`
-- **退出** — stops tray and kills child processes
-
----
-
-## Console (Tauri)
-
-The management console is a native WebView window that connects to the running AttaOS server.
-
-```bash
-# Launch directly
-ATTA_PORT=3000 atta-console
-
-# Or via tray menu "管理控制台"
-```
-
-Behavior:
-- Navigates to `http://localhost:{ATTA_PORT}` on startup
-- Closing the window hides it (does not exit the process)
-- Can be re-shown via tray menu
-
----
-
-## Updater (Tauri)
-
-```bash
-# Launch directly
-atta-updater
-
-# Or via tray menu "检查更新"
-```
-
-UI flow: idle → checking → available → downloading → done (or error at any step).
 
 ---
 
@@ -192,14 +120,18 @@ Base URL: `http://127.0.0.1:{port}/api/v1`
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check |
+| GET | `/system/health` | System health (alias) |
 | GET | `/system/info` | System information |
+| GET | `/system/metrics` | System metrics |
 
 ### Tasks
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/tasks` | List tasks |
-| POST | `/tasks` | Create task |
+| GET | `/tasks` | List tasks (with filter/pagination) |
+| POST | `/tasks` | Create task (max 1MB input) |
 | GET | `/tasks/:id` | Get task |
+| DELETE | `/tasks/:id` | Delete task |
+| POST | `/tasks/:id/advance` | Advance task state |
 
 ### Flows
 | Method | Path | Description |
@@ -207,30 +139,34 @@ Base URL: `http://127.0.0.1:{port}/api/v1`
 | GET | `/flows` | List flow definitions |
 | POST | `/flows` | Register flow |
 | GET | `/flows/:id` | Get flow definition |
+| PUT | `/flows/:id` | Update flow |
+| DELETE | `/flows/:id` | Delete flow |
 
 ### Skills
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/skills` | List skills |
+| POST | `/skills` | Create skill |
 | GET | `/skills/:id` | Get skill |
+| PUT | `/skills/:id` | Update skill |
+| DELETE | `/skills/:id` | Delete skill |
 
 ### Tools
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/tools` | List tools |
 | GET | `/tools/:name` | Get tool schema |
-
-### Plugins
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/plugins` | List plugins |
-| POST | `/plugins` | Register plugin |
+| POST | `/tools/:name/test` | Test tool execution |
 
 ### MCP
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/mcp/servers` | List MCP servers |
 | POST | `/mcp/servers` | Register MCP server |
+| GET | `/mcp/servers/:id` | Get MCP server |
+| DELETE | `/mcp/servers/:id` | Unregister MCP server |
+| POST | `/mcp/servers/:id/tools` | Refresh server tools |
+| GET | `/mcp/tools` | List all MCP tools |
 
 ### Channels
 | Method | Path | Description |
@@ -242,22 +178,85 @@ Base URL: `http://127.0.0.1:{port}/api/v1`
 |--------|------|-------------|
 | GET | `/security/policy` | Get security policy |
 
-### Approvals (Enterprise)
+### Approvals
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/approvals` | List approvals |
+| GET | `/approvals` | List pending approvals |
 | POST | `/approvals/:id/approve` | Approve |
 | POST | `/approvals/:id/deny` | Deny |
+| POST | `/approvals/:id/request-changes` | Request changes |
 
 ### Audit (Enterprise)
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/audit` | Query audit log |
 
+### Chat
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/chat` | SSE streaming chat |
+
+### Agents
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/agents` | List running agents |
+| GET | `/remote-agents` | List remote agents |
+| POST | `/remote-agents` | Register remote agent |
+
+### Cron
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/cron/jobs` | List cron jobs |
+| GET | `/cron/jobs/:id` | Get cron job |
+| GET | `/cron/status` | Cron engine status |
+
+### Memory
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/memory/store` | Store memory entry |
+| POST | `/memory/search` | Search memory |
+
+### Usage
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/usage` | Usage statistics |
+
+### Diagnostics
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/diagnostics` | System diagnostics |
+
+### Logs
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/logs` | SSE log stream |
+
 ### WebSocket
 | Path | Description |
 |------|-------------|
-| `/ws` | Real-time event stream (EventEnvelope JSON) |
+| `/ws` | Real-time event stream (EventEnvelope JSON, with auth) |
+
+---
+
+## Chat SSE Protocol
+
+Request:
+```json
+POST /api/v1/chat
+{
+  "message": "User message",
+  "skill_id": "optional-skill-id"
+}
+```
+
+SSE events (`ChatEvent`):
+```
+data: {"type":"thinking","data":{"iteration":1}}
+data: {"type":"text_delta","data":{"delta":"Hello"}}
+data: {"type":"tool_start","data":{"tool_name":"web_search","call_id":"abc"}}
+data: {"type":"tool_complete","data":{"tool_name":"web_search","call_id":"abc","duration_ms":1200}}
+data: {"type":"done","data":{"iterations":2}}
+```
 
 ---
 
@@ -267,38 +266,46 @@ Base URL: `http://127.0.0.1:{port}/api/v1`
 |----------|-------------|---------|
 | `ANTHROPIC_API_KEY` | Anthropic Claude API key | - |
 | `OPENAI_API_KEY` | OpenAI API key | - |
+| `DEEPSEEK_API_KEY` | DeepSeek API key | - |
 | `OPENAI_BASE_URL` | OpenAI-compatible base URL | `https://api.openai.com` |
+| `ANTHROPIC_MODEL` | Anthropic model ID | `claude-sonnet-4-20250514` |
 | `OPENAI_MODEL` | OpenAI model ID | `gpt-4o` |
-| `ATTA_PORT` | Server port (for tray/console/updater) | `3000` |
-| `RUST_LOG` | Log level filter | `info` |
+| `DEEPSEEK_MODEL` | DeepSeek model ID | `deepseek-chat` |
+| `ATTA_PORT` | Server port | `3000` |
+| `ATTA_HOME` | Data directory | `~/.atta` |
+| `ATTA_LOG` / `ATTA_LOG_LEVEL` | Log level filter | `info` |
+| `ATTA_DATA_DIR` | Override data directory | - |
+| `RUST_LOG` | Detailed log filter | `info` |
 
-When both `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` are set, a `ReliableProvider` is created with Anthropic as primary and OpenAI as fallback.
+When multiple API keys are set, a `ReliableProvider` is created with automatic failover.
 
 ---
 
 ## Data Directory
 
-AttaOS stores data in `~/.atta/`:
+OpenAtta stores data in `~/.atta/`:
 
 ```
 ~/.atta/
-├── data.db          # SQLite database (tasks, flows, plugins, etc.)
+├── data.db          # SQLite database (tasks, flows, skills, etc.)
 ├── estop.json       # E-Stop state (persisted across restarts)
+├── keys.env         # API keys file (loaded on startup)
 ├── skills/          # User-installed skills
-└── secrets.db       # Encrypted secret store (if used)
+├── secrets.db       # Encrypted secret store
+└── models/          # Local embedding models (fastembed)
 ```
 
 ---
 
 ## Skill Files
 
-Skills are defined in YAML (SkillDef) and loaded from:
-1. `./skills/` (project-local)
+Skills are defined in Markdown (SKILL.md) and loaded from:
+1. `./skills/` (project-local, 12 built-in)
 2. `~/.atta/skills/` (user-global)
-3. Community sync directory
 
-Example skill:
+Example skill (`skills/atta-summarize/SKILL.md`):
 ```yaml
+---
 id: summarize
 version: "1.0"
 name: "Summarize Text"
@@ -317,54 +324,60 @@ risk_level: low
 tags:
   - text
   - productivity
+---
 ```
 
 ---
 
 ## Flow Definitions
 
-Flows are YAML state machines registered via API or disk:
+Flows are YAML state machines loaded from `./flows/` or registered via API:
 
 ```yaml
-id: code_review_flow
+id: code_review
 version: "1.0"
 name: "Code Review"
-initial_state: analyze
+initial_state: start
 states:
+  start:
+    type: start
+    transitions:
+      - to: analyze
+        auto: true
   analyze:
-    state_type: agent
-    skill: code_analysis
+    type: agent
+    skill: code-review
     transitions:
       - to: review_gate
-        when: "output.needs_review == true"
+        when: "has_high_risk_tools"
       - to: done
         auto: true
-
   review_gate:
-    state_type: gate
+    type: gate
     gate:
       approver_role: developer
       timeout: "24h"
       on_timeout: done
     transitions:
       - to: apply_fixes
-        when: "approval.status == approved"
+        when: "approved"
       - to: done
-        when: "approval.status == denied"
-
+        when: "denied"
   apply_fixes:
-    state_type: agent
-    skill: apply_review_fixes
+    type: agent
+    skill: fix-bug
     transitions:
       - to: done
-
+        auto: true
   done:
-    state_type: end
-
+    type: end
 on_error:
   max_retries: 2
+  retry_states: [analyze, apply_fixes]
   fallback: done
 ```
+
+Built-in flows (6): `bug-triage`, `code-review`, `daily-digest`, `prd-to-code`, `research-report`, `skill-onboard`.
 
 ---
 
@@ -375,14 +388,17 @@ on_error:
 cargo fmt --all
 
 # Lint
-cargo clippy --workspace --all-targets -- -D warnings
+cargo clippy --workspace --exclude atta-shell --all-targets -- -D warnings
 
 # Test all
-cargo test --workspace
+cargo test --workspace --exclude atta-shell
 
 # Test single crate
 cargo test -p atta-core
 
 # Run with debug logging
-RUST_LOG=debug attaos run
+RUST_LOG=debug cargo run -p atta-server -- --port 3000
+
+# WebUI dev server (hot reload)
+cd webui && npm run dev
 ```

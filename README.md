@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🐜 AttaOS
+# OpenAtta
 
 **The AI Agent Operating System**
 
@@ -8,8 +8,8 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-2021_Edition-orange.svg)](https://www.rust-lang.org/)
-[![Crates](https://img.shields.io/badge/Workspace-20_crates-green.svg)](#architecture)
-[![Tests](https://img.shields.io/badge/Tests-388-brightgreen.svg)](#testing)
+[![Crates](https://img.shields.io/badge/Workspace-16_crates-green.svg)](#architecture)
+[![Tests](https://img.shields.io/badge/Tests-1023-brightgreen.svg)](#testing)
 
 [English](README.md) | [中文](docs/README.cn.md)
 
@@ -21,21 +21,21 @@
 
 ## Why "Atta"?
 
-*Atta* is the leafcutter ant — a species whose colonies contain **8 million individuals** and have thrived for **50 million years**. No central command dictates behavior; intelligence emerges from simple rules, role specialization, and shared communication. AttaOS takes the same principle into software: many autonomous agents, coordinated under clear rules, producing results no single agent could achieve alone.
+*Atta* is the leafcutter ant — a species whose colonies contain **8 million individuals** and have thrived for **50 million years**. No central command dictates behavior; intelligence emerges from simple rules, role specialization, and shared communication. OpenAtta takes the same principle into software: many autonomous agents, coordinated under clear rules, producing results no single agent could achieve alone.
 
 ---
 
-## What is AttaOS?
+## What is OpenAtta?
 
-AttaOS is a **Rust-native operating system for AI agents**. It treats every agent as a managed process with scheduling, isolation, security enforcement, and full auditability — the same guarantees a traditional OS provides to programs, purpose-built for autonomous AI.
+OpenAtta is a **Rust-native operating system for AI agents**. It treats every agent as a managed process with scheduling, isolation, security enforcement, and full auditability — the same guarantees a traditional OS provides to programs, purpose-built for autonomous AI.
 
 The system is structured in four layers:
 
 ```
                     ┌──────────────────────────────────────────┐
-  Clients           │  WebUI    Console    CLI    System Tray  │
+  Clients           │  WebUI    Shell    CLI    System Tray    │
                     └──────────────┬───────────────────────────┘
-                                   │ HTTP + WebSocket
+                                   │ HTTP + SSE + WebSocket
                     ┌──────────────▼───────────────────────────┐
   Control Plane     │  API Router  ·  FlowEngine  ·  Skills    │
   (atta-core)       │  CoreCoordinator  ·  ToolRegistry        │
@@ -51,7 +51,7 @@ The system is structured in four layers:
                     └──────────────────────────────────────────┘
 ```
 
-- **Clients** — WebUI (Vue 3), Tauri console, CLI, and system tray provide multiple entry points.
+- **Clients** — WebUI (Vue 3), Tauri Shell (native desktop), CLI, and system tray provide multiple entry points.
 - **Control Plane** — The `CoreCoordinator` receives tasks, advances Flows through their state machines, and dispatches agent work.
 - **Execution Layer** — `ReactAgent` runs the ReAct loop (Observe → Think → Act → Observe), with every tool call passing through `SecurityGuard`.
 - **Infrastructure** — MCP servers provide extensibility; `SecretStore` and `EstopManager` enforce operational boundaries.
@@ -62,7 +62,7 @@ The system is structured in four layers:
 
 ### 4 Core Traits — The Desktop/Enterprise Seam
 
-AttaOS compiles into two profiles from **one codebase**. Four abstract traits define the boundary between business logic and infrastructure:
+OpenAtta compiles into two profiles from **one codebase**. Four abstract traits define the boundary between business logic and infrastructure:
 
 | Trait | Desktop Implementation | Enterprise Implementation |
 |-------|----------------------|--------------------------|
@@ -74,13 +74,13 @@ AttaOS compiles into two profiles from **one codebase**. Four abstract traits de
 Switch at compile time:
 
 ```bash
-cargo build --features desktop      # Zero external dependencies
-cargo build --features enterprise   # Production-grade infrastructure
+cargo build -p atta-server --features desktop      # Zero external dependencies
+cargo build -p atta-server --features enterprise   # Production-grade infrastructure
 ```
 
 Business logic — agents, flows, skills, tools — is written once against these traits. It never knows which infrastructure it runs on.
 
-### 20-Crate Workspace
+### 16-Crate Workspace
 
 Each responsibility lives in its own crate with explicit dependency edges:
 
@@ -94,7 +94,7 @@ atta-types ─────── Shared domain types, error enums, trait definit
     ├── atta-memory ───── MemoryStore + FTS5/vector hybrid search
     ├── atta-secret ───── AES-256-GCM encrypted key-value storage
     ├── atta-mcp ──────── MCP client (SSE + Stdio transports)
-    ├── atta-tools ────── 50+ native Rust tool implementations
+    ├── atta-tools ────── 40+ native Rust tool implementations
     └── atta-agent ────── LLM providers + ReAct engine + prompt system
             │
             ├── atta-security ── SecurityGuard + EstopManager + Approval
@@ -102,11 +102,9 @@ atta-types ─────── Shared domain types, error enums, trait definit
                     │
                     └── atta-core ──── Control plane (API + FlowEngine + Coordinator)
                             │
-                            ├── atta-cli ──────────── attaos binary
-                            ├── atta-tray ─────────── System tray (shared logic)
-                            ├── atta-tray-standalone ─ Enterprise tray binary
-                            ├── atta-console ──────── Tauri management console
-                            └── atta-updater ──────── Tauri auto-updater
+                            ├── atta-server ──── attaos daemon binary
+                            ├── atta-cli ──────── attacli client binary
+                            └── atta-shell ────── attash desktop shell (Tauri v2)
 ```
 
 ### Data Flow — Task Execution
@@ -181,7 +179,7 @@ Each role inherits permissions from those below it. The `Authz` trait enforces t
 
 ### Secret Management
 
-`atta-secret` provides AES-256-GCM encrypted key-value storage. API keys, tokens, and credentials are never stored in plaintext. Secret scrubbing in the security pipeline ensures sensitive values are stripped from agent output and logs.
+`atta-secret` provides AES-256-GCM encrypted key-value storage with key rotation support. API keys, tokens, and credentials are never stored in plaintext. Secret scrubbing in the security pipeline ensures sensitive values are stripped from agent output and logs.
 
 ---
 
@@ -193,42 +191,53 @@ The `FlowEngine` executes YAML-defined state machines where each state can be an
 
 ```yaml
 id: code-review
-initial_state: analyze
+initial_state: start
 states:
+  start:
+    type: start
+    transitions:
+      - to: analyze
+        auto: true
   analyze:
-    type: Agent
-    skill: code-analysis
+    type: agent
+    skill: code-review
     transitions:
-      - target: review_gate
+      - to: review_gate
+        when: "has_high_risk_tools"
+      - to: done
+        auto: true
   review_gate:
-    type: Gate
+    type: gate
     gate:
-      approver_role: tech-lead
-      timeout: 24h
-      on_timeout: auto_approve
+      approver_role: developer
+      timeout: "24h"
+      on_timeout: done
     transitions:
-      - condition: approved
-        target: deploy
-      - condition: rejected
-        target: revise
-  deploy:
-    type: Agent
-    skill: deployment
+      - to: apply_fixes
+        when: "approved"
+      - to: done
+        when: "denied"
+  apply_fixes:
+    type: agent
+    skill: fix-bug
     transitions:
-      - target: done
+      - to: done
+        auto: true
   done:
-    type: End
+    type: end
 ```
 
-Gates are first-class citizens. A flow can require human sign-off at any step, with configurable timeout behavior (block, auto-approve, or auto-reject). This makes AttaOS suitable for regulated environments where AI actions must be supervised.
+Gates are first-class citizens. A flow can require human sign-off at any step, with configurable timeout behavior (block, auto-approve, or auto-reject). This makes OpenAtta suitable for regulated environments where AI actions must be supervised.
+
+6 built-in flow templates: `bug-triage`, `code-review`, `daily-digest`, `prd-to-code`, `research-report`, `skill-onboard`.
 
 ### Full Audit Trail
 
-In Enterprise mode, `AuditStore` records every significant event: task creation, agent actions, tool invocations, approval decisions, and E-Stop activations. The audit trail is append-only and provides the compliance record required in regulated industries.
+In Enterprise mode, `AuditStore` records every significant event: task creation, agent actions, tool invocations, approval decisions, and E-Stop activations. The audit trail is append-only with SQL injection prevention (whitelist-validated filter fields) and provides the compliance record required in regulated industries.
 
 ### Distributed Event Bus
 
-Enterprise deployments use **NATS JetStream** for inter-node communication. Events are durable, ordered, and deliverable across multiple AttaOS instances. Desktop mode uses tokio broadcast channels for zero-dependency operation — same event semantics, different transport.
+Enterprise deployments use **NATS JetStream** for inter-node communication. Events are durable, ordered, and deliverable across multiple OpenAtta instances. Desktop mode uses tokio broadcast channels for zero-dependency operation — same event semantics, different transport.
 
 ### Multi-Model LLM with Failover
 
@@ -267,7 +276,7 @@ The **ReAct loop** (Observe → Think → Act → Observe) drives every agent:
 - **Research phase** — optional pre-loop information gathering before the main ReAct cycle
 - **Sub-agent delegation** — `DelegationTool` spawns child agents with scoped tools and configurable timeout
 
-### 50+ Native Tools
+### 40+ Native Tools
 
 | Category | Examples |
 |----------|---------|
@@ -277,12 +286,29 @@ The **ReAct loop** (Observe → Think → Act → Observe) drives every agent:
 | **Git** | `git_ops` |
 | **Web** | `web_fetch`, `web_search`, `http_request` |
 | **Memory** | `memory_store`, `memory_recall`, `memory_forget` |
-| **Scheduling** | `cron`, `schedule`, `cron_list` |
+| **Scheduling** | `cron`, `schedule`, `cron_list`, `cron_update`, `cron_run` |
 | **Multi-Agent** | `delegation`, `subagent_spawn`, `subagent_list` |
 | **Media** | `image_info`, `screenshot`, `pdf_read` |
 | **IPC** | `agents_list`, `agents_send`, `agents_inbox` |
 
 Plus **MCP protocol** support (SSE + Stdio transports) for connecting to remote tool servers.
+
+### 12 Built-in Skills
+
+| Skill | Description |
+|-------|-------------|
+| `atta-code-review` | Review code for bugs, security, and style |
+| `atta-fix-bug` | Diagnose and fix bugs |
+| `atta-research` | Research topics and compile information |
+| `atta-summarize` | Summarize text content |
+| `atta-prd-writer` | Generate structured PRD from requirements |
+| `atta-spec-writer` | Generate technical spec from PRD |
+| `atta-task-planner` | Decompose spec into implementation tasks |
+| `atta-code-generator` | Generate code from task plan |
+| `atta-spec-verifier` | Verify implementation against spec |
+| `atta-code-fixer` | Fix issues found during verification |
+| `atta-find-skills` | Discover available skills |
+| `atta-skill-creator` | Create new skills from templates |
 
 ### Hybrid Memory
 
@@ -297,10 +323,9 @@ Agents remember across conversations with dual-mode search:
 
 | Component | Technology |
 |-----------|-----------|
-| **Web UI** | Vue 3 + Vite + Pinia, embedded in the binary via `rust-embed` |
-| **System Tray** | `tray-icon` + `muda` with menu integration |
-| **Console App** | Tauri v2 WebView (< 10 MB vs 100+ MB Electron) |
-| **Auto-Updater** | Tauri v2 updater with GitHub Releases integration |
+| **Web UI** | Vue 3 + Vite + Pinia + vue-i18n (en/zh-CN), embedded in the binary via `rust-embed` |
+| **Desktop Shell** | Tauri v2 WebView + native system tray + auto-updater (< 10 MB) |
+| **CLI Client** | `attacli` — lightweight HTTP/SSE client |
 
 ---
 
@@ -315,18 +340,23 @@ Agents remember across conversations with dual-mode search:
 
 ```bash
 # Clone
-git clone https://github.com/anthropics/attaos.git
-cd attaos
+git clone https://github.com/openatta/OpenAtta.git
+cd OpenAtta
 
 # Build Desktop version
-cargo build --features desktop
+cargo build -p atta-server --features desktop
+
+# Build CLI client
+cargo build -p atta-cli
 
 # Run the server
-cargo run --bin attaos -- run --port 3000
+cargo run -p atta-server -- --port 3000
 
-# Or start an interactive chat
-cargo run --bin attaos -- chat
+# In another terminal, check status
+cargo run -p atta-cli -- status
 ```
+
+Open `http://localhost:3000` in your browser to access the WebUI.
 
 ### Environment Variables
 
@@ -342,15 +372,28 @@ export OPENAI_MODEL="gpt-4o"
 export DEEPSEEK_MODEL="deepseek-chat"
 ```
 
+### Binaries
+
+| Binary | Crate | Description |
+|--------|-------|-------------|
+| `attaos` | `crates/server` | Core server daemon: HTTP API + WebUI + Agent execution |
+| `attacli` | `crates/cli` | Lightweight CLI client: HTTP/SSE communication |
+| `attash` | `apps/shell/src-tauri` | Desktop Shell: Tauri WebView + native system tray |
+
 ### CLI Commands
 
 ```bash
-attaos run [--mode desktop|enterprise] [--port 3000]  # Start server
-attaos launch [--port 3000]                            # Start with update check
-attaos chat [--channel terminal]                       # Interactive chat
-attaos channels                                        # List available channels
-attaos task list|create|get                             # Task management
-attaos skill list|get|run                               # Skill management
+# attaos server
+attaos [--mode desktop|enterprise] [--port 3000]    # Start server
+
+# attacli client
+attacli status                                       # Check server status
+attacli chat                                         # Interactive chat
+attacli task list|create|get                         # Task management
+attacli flow list|get                                # Flow management
+attacli skill list|get|run                           # Skill management
+attacli tool list|get                                # Tool management
+attacli approval list|approve|deny                   # Approval management
 ```
 
 ---
@@ -361,34 +404,33 @@ attaos skill list|get|run                               # Skill management
 |-------|-----------|
 | Language | Rust 2021 edition |
 | Async Runtime | Tokio |
-| HTTP | axum |
-| Serialization | serde / serde_json / serde_yaml |
-| Database | sqlx (SQLite + Postgres) |
+| HTTP | axum 0.7 |
+| Serialization | serde / serde_json / serde_yml |
+| Database | sqlx 0.8 (SQLite + Postgres) |
 | Logging | tracing + tracing-subscriber |
 | Event Bus | tokio mpsc/broadcast · async-nats |
 | Error Handling | thiserror + anyhow |
-| CLI | clap |
-| Web UI | Vue 3 + Vite + Pinia |
-| System Tray | tray-icon + muda |
-| Desktop Apps | Tauri v2 |
-| Crypto | AES-256-GCM · Ed25519 · SHA-256 |
+| CLI | clap 4 |
+| Web UI | Vue 3 + Vite + Pinia + vue-i18n |
+| Desktop Shell | Tauri v2 |
+| Crypto | AES-256-GCM · HKDF · SHA-256 |
 
 ---
 
 ## Testing
 
 ```bash
-# Run all tests
-cargo test --workspace
+# Run all tests (excluding shell)
+cargo test --workspace --exclude atta-shell
 
 # Run tests for a specific crate
-cargo test -p atta-agent
+cargo test -p atta-core
 
 # Run live LLM integration tests (requires API key)
 ATTA_LIVE_TEST=1 cargo test -p atta-agent --test provider_live_deepseek -- --nocapture
 
 # Lint
-cargo clippy --workspace --all-targets -- -D warnings
+cargo clippy --workspace --exclude atta-shell --all-targets -- -D warnings
 
 # Format check
 cargo fmt --all -- --check
@@ -396,7 +438,7 @@ cargo fmt --all -- --check
 
 | Metric | Count |
 |--------|-------|
-| Unit + integration tests | 388 |
+| Unit + integration tests | 1,023 |
 | Live LLM integration tests | 10 |
 | Benchmark suites | 1 |
 
@@ -406,14 +448,15 @@ cargo fmt --all -- --check
 
 | Metric | Value |
 |--------|-------|
-| Workspace crates | 20 |
-| Rust source files | 253 |
-| Lines of Rust code | ~41,000 |
-| Native tools | 50+ |
+| Workspace crates | 16 |
+| Rust source files | 291 |
+| Lines of Rust code | ~72,000 |
+| Native tools | 40+ |
+| Built-in skills | 12 |
+| Built-in flows | 6 |
 | Channel integrations | 22 |
 | LLM providers | 3 (+ failover + routing) |
-| Production binaries | 4 |
-| Third-party dependencies | 784 (all Apache-2.0 compatible) |
+| Production binaries | 3 (attaos, attacli, attash) |
 
 ---
 
@@ -422,10 +465,11 @@ cargo fmt --all -- --check
 | Document | Description |
 |----------|-------------|
 | [Architecture](docs/architecture.md) | System layers, core traits, data flow, feature flags |
+| [Client-Server](docs/client-server-architecture.md) | Binary roles, communication protocols, auto-startup |
 | [Tech Stack](docs/tech-stack.md) | Full dependency list with selection rationale |
 | [Usage Guide](docs/usage.md) | CLI, API endpoints, configuration, skill/flow definitions |
 | [Comparison](docs/comparison.md) | Feature comparison vs OpenClaw and ZeroClaw |
-| [Third-Party Notices](THIRD-PARTY-NOTICES.md) | License attribution for all 784 dependencies |
+| [Third-Party Notices](THIRD-PARTY-NOTICES.md) | License attribution for dependencies |
 
 ---
 

@@ -1,12 +1,12 @@
-# AttaOS Architecture
+# OpenAtta Architecture
 
-Status: v0.4 — based on actual codebase
+Version: v0.1.0
 
 ---
 
 ## Overview
 
-AttaOS is a Rust-based AI operating system that schedules, isolates, and audits AI agents like processes. It ships in two profiles:
+OpenAtta is a Rust-based AI operating system that schedules, isolates, and audits AI agents like processes. It ships in two profiles:
 
 | Profile | Infrastructure | Use Case |
 |---------|---------------|----------|
@@ -22,31 +22,31 @@ Both profiles share the same codebase — switching is done via Cargo feature fl
 ```
 Client Layer
   ├── WebUI (Vue 3 SPA, embedded in axum via rust-embed)
-  ├── Console (Tauri WebView, navigates to localhost)
-  ├── CLI (attaos run | launch | chat | task | skill)
-  └── System Tray (tray-icon + muda, spawns Console/Updater)
+  ├── Shell (Tauri v2 WebView + native system tray)
+  ├── CLI (attacli status | chat | task | skill | flow)
+  └── System Tray (integrated in Shell)
 
-                        ▼ HTTP + WebSocket
+                        ▼ HTTP + SSE + WebSocket
 
 Control Plane (atta-core)
   ├── API Router (axum REST + /api/v1/ws)
   ├── CoreCoordinator (event-driven orchestrator)
   ├── FlowEngine (YAML state machine with approval gates)
-  ├── SkillRegistry (load from disk + community sync)
-  └── ToolRegistry (builtin + native + MCP + plugin)
+  ├── SkillRegistry (load from disk + preloaded)
+  └── ToolRegistry (builtin + native + MCP)
 
                         ▼ EventBus
 
 Execution Layer
   ├── ReactAgent (Observe → Think → Act → Observe loop)
-  ├── LlmProvider (Anthropic / OpenAI / Router / Reliable)
+  ├── LlmProvider (Anthropic / OpenAI / DeepSeek / Router / Reliable)
   ├── SecurityGuard (risk classification + approval + rate limit)
   ├── Channel Runtime (22 messaging platforms)
   └── Memory System (FTS5 + vector hybrid search)
 
 Infrastructure Layer
   ├── MCP Registry (SSE + Stdio transports)
-  ├── SecretStore (AES-256-GCM encrypted SQLite)
+  ├── SecretStore (AES-256-GCM encrypted SQLite, with key rotation)
   └── E-Stop Manager (4-level emergency stop)
 ```
 
@@ -77,7 +77,7 @@ These traits are the architectural seams. Each has a Desktop and Enterprise impl
 | `PromptSection` | atta-agent | Composable system prompt building blocks |
 | `MemoryStore` | atta-memory | Agent memory persistence (store, search, cleanup) |
 | `EmbeddingProvider` | atta-memory | Vector embedding generation |
-| `SecretStore` | atta-secret | Encrypted key-value secret storage |
+| `SecretStore` | atta-secret | Encrypted key-value secret storage with rotation |
 | `McpClient` | atta-mcp | MCP server communication (list tools, call tool) |
 | `Channel` | atta-channel | Bi-directional messaging platform integration |
 | `ApprovalBackend` | atta-security | Route approval requests (CLI, WebSocket, webhook) |
@@ -88,7 +88,7 @@ These traits are the architectural seams. Each has a Desktop and Enterprise impl
 
 ### Event System
 
-**`EventEnvelope`** — the universal event carrier on the bus.
+**`EventEnvelope`** — the universal event carrier on the bus. `new()` returns `Result<Self, AttaError>`, propagating serialization errors instead of silently replacing with Null.
 
 ```
 EventEnvelope {
@@ -102,7 +102,7 @@ EventEnvelope {
 }
 ```
 
-Factory methods: `task_created`, `flow_advanced`, `agent_assigned`, `agent_completed`, `agent_error`, `approval_requested`, `tool_completed`, `agent_stream_delta`, `system_started`, `system_shutdown`, etc.
+Factory methods: `task_created`, `flow_advanced`, `agent_assigned`, `agent_completed`, `agent_error`, `approval_requested`, `tool_completed`, `agent_stream_delta`, `system_started`, `system_shutdown`, etc. All return `Result<Self, AttaError>`.
 
 ### Flow System
 
@@ -114,6 +114,8 @@ FlowDef {
     initial_state: String,
     states: HashMap<String, StateDef>,
     on_error: Option<ErrorPolicy>,   // max_retries + fallback state
+    skills: Vec<String>,
+    source: String,
 }
 
 StateDef {
@@ -122,6 +124,7 @@ StateDef {
     skill: Option<String>,
     gate: Option<GateDef>,           // approval gate with timeout
     transitions: Vec<TransitionDef>, // conditional transitions
+    timeout_secs: Option<u64>,       // per-state timeout (for parallel branches)
 }
 
 GateDef {
@@ -132,6 +135,8 @@ GateDef {
 }
 ```
 
+**Validation**: `validate_flow_def()` checks for exactly one Start state, at least one End state, all transition targets exist, ErrorPolicy fallback/retry_states reference valid states, and Gate states do not have `auto: true` transitions.
+
 **`Task`** — a running instance of a Flow.
 
 ```
@@ -141,10 +146,13 @@ Task {
     current_state, status, input, output,
     state_data: Value,               // accumulated state across steps
     created_by: Actor,
+    version: u64,                    // optimistic locking
 }
 ```
 
-**`FlowEngine`** — advances Tasks through their FlowDef state machine, evaluates conditions, fires events.
+**Optimistic Locking**: `advance_task` uses `WHERE version = ?` and increments on success. On conflict, returns `AttaError::Conflict` with expected/actual versions.
+
+**`FlowEngine`** — advances Tasks through their FlowDef state machine, evaluates conditions, fires events. Auto-transitions are bounded by `MAX_CASCADE_DEPTH = 100` to prevent infinite loops.
 
 ### Agent System
 
@@ -170,6 +178,7 @@ Methods: `run()` (blocking), `run_streaming()` (delta events). Supports thinking
 **LLM Providers:**
 - `AnthropicProvider` — Claude API
 - `OpenAiProvider` — OpenAI/compatible APIs
+- `DeepSeekProvider` — DeepSeek API
 - `ReliableProvider` — retry + fallback chain
 - `RouterProvider` — multi-model routing by model ID
 
@@ -197,7 +206,7 @@ On every `invoke()`:
 8. Network access control + SSRF protection
 9. Secret scrubbing in outputs
 
-**`EstopManager`** — 4-level emergency stop: KillAll, NetworkKill, DomainBlock, ToolFreeze. Persists to disk, optional OTP to resume.
+**`EstopManager`** — 4-level emergency stop: KillAll, NetworkKill, DomainBlock, ToolFreeze. Persists to disk, optional OTP to resume. OTP generation uses cryptographic RNG.
 
 **`ApprovalManager`** — session-scoped tool approval with backends:
 - `CliApprovalBackend` — interactive stdin prompt
@@ -206,7 +215,7 @@ On every `invoke()`:
 
 ### Tool System
 
-**50+ native tools** organized by category:
+**40+ native tools** organized by category:
 
 | Category | Tools |
 |----------|-------|
@@ -225,7 +234,6 @@ On every `invoke()`:
 | LLM | `model_routing` |
 | System | `cli_discovery` |
 | Notifications | `pushover` |
-| Browser | (feature-gated chromium tools) |
 
 **3 tool binding types:** `Builtin`, `Native` (Rust), `Mcp` (remote).
 
@@ -244,16 +252,15 @@ Terminal, Webhook, Telegram, Slack, Discord, Lark, DingTalk, QQ, WATI, Mattermos
 - BLOB vector storage + cosine similarity (semantic)
 - Weighted hybrid fusion
 
-**`EmbeddingProvider`** trait for pluggable embedding backends.
+**`EmbeddingProvider`** trait for pluggable embedding backends. Optional fastembed integration for local embeddings.
 
 ### Client Applications
 
-| Binary | Role |
-|--------|------|
-| `attaos` | CLI entry point (run, launch, chat, task, skill) |
-| `atta-tray` | System tray (standalone, Enterprise) |
-| `atta-console` | Tauri WebView management console |
-| `atta-updater` | Tauri update checker + installer |
+| Binary | Crate | Role |
+|--------|-------|------|
+| `attaos` | atta-server | Core server daemon (HTTP API + WebUI + Agent execution) |
+| `attacli` | atta-cli | Lightweight CLI client (HTTP/SSE) |
+| `attash` | atta-shell | Desktop Shell (Tauri v2 WebView + system tray + auto-updater) |
 
 ---
 
@@ -267,9 +274,9 @@ atta-types (shared domain types, error enums, traits: ToolRegistry, NativeTool)
     ├── atta-auth      (Authz trait + AllowAll / RBACAuthz)
     ├── atta-audit     (AuditSink trait + NoopAudit / AuditStore)
     ├── atta-memory    (MemoryStore + EmbeddingProvider)
-    ├── atta-secret    (SecretStore + SqliteSecretStore)
+    ├── atta-secret    (SecretStore + SqliteSecretStore + key rotation)
     ├── atta-mcp       (McpClient + McpRegistry + SSE/Stdio transports)
-    ├── atta-tools     (50+ NativeTool implementations)
+    ├── atta-tools     (40+ NativeTool implementations)
     └── atta-agent     (LlmProvider + ReactAgent + ConversationContext)
             │
             ├── atta-security  (SecurityGuard + EstopManager + ApprovalManager)
@@ -277,11 +284,9 @@ atta-types (shared domain types, error enums, traits: ToolRegistry, NativeTool)
                     │
                     └── atta-core  (AppState + CoreCoordinator + FlowEngine + API)
                             │
-                            ├── atta-cli           (attaos binary)
-                            ├── atta-tray          (shared tray logic)
-                            ├── atta-tray-standalone (atta-tray binary)
-                            ├── atta-console       (Tauri console binary)
-                            └── atta-updater       (Tauri updater binary)
+                            ├── atta-server  (attaos binary)
+                            ├── atta-cli     (attacli binary)
+                            └── atta-shell   (attash binary, Tauri v2)
 ```
 
 ---
@@ -292,7 +297,7 @@ atta-types (shared domain types, error enums, traits: ToolRegistry, NativeTool)
 
 ```
 1. Client creates task via POST /api/v1/tasks
-2. FlowEngine creates Task record, publishes "task.created" event
+2. FlowEngine creates Task record (with FK validation), publishes "task.created" event
 3. CoreCoordinator receives event, advances Flow to first Agent state
 4. FlowEngine publishes "flow.advanced" event
 5. CoreCoordinator spawns ReactAgent for current state's skill
@@ -304,7 +309,7 @@ atta-types (shared domain types, error enums, traits: ToolRegistry, NativeTool)
    e. Execute tools via ToolRegistry
    f. Loop until LLM returns final answer or max_iterations
 7. Agent publishes "agent.completed" event with output
-8. CoreCoordinator advances Flow to next state
+8. CoreCoordinator advances Flow to next state (with optimistic locking)
 9. If Gate state → publish "approval.requested", wait
 10. Repeat until End state → Task status = Completed
 ```
@@ -336,8 +341,27 @@ atta-types (shared domain types, error enums, traits: ToolRegistry, NativeTool)
 | atta-tools | `browser` | Browser automation tools |
 | atta-channel | `terminal` (default) | stdin/stdout channel |
 | atta-channel | `telegram` / `slack` / `discord` / ... | Per-platform channels |
-| atta-cli | `desktop` (default) | Desktop profile bundle |
-| atta-cli | `enterprise` | Enterprise profile bundle |
+| atta-server | `desktop` (default) | Desktop profile bundle |
+| atta-server | `enterprise` | Enterprise profile bundle |
+
+---
+
+## Hardening
+
+Key hardening measures implemented in v0.1.0:
+
+- **Optimistic locking** — `version` field on Task, `WHERE version = ?` in SQL UPDATE
+- **Authorization** — `check_authz` on all HTTP handlers
+- **EventEnvelope Result** — serialization errors propagated, not silently swallowed
+- **RwLock poisoning recovery** — graceful recovery with logging across all registries
+- **FK validation** — `create_task_with_flow` validates flow_def exists in store
+- **Query limits** — `MAX_QUERY_LIMIT = 1000` with `.clamp(1, MAX)` on list endpoints
+- **Cascade depth limit** — `MAX_CASCADE_DEPTH = 100` prevents infinite auto-transitions
+- **MCP request serialization** — `Mutex` prevents concurrent request interleaving on stdio
+- **SQL injection prevention** — `ALLOWED_FILTER_FIELDS` whitelist in audit queries
+- **Env sanitization** — whitelist of allowed `ATTA_*` environment variables for child processes
+- **CORS middleware** — configurable `CorsLayer` on API routes
+- **WebSocket auth** — validation before upgrade
 
 ---
 
@@ -345,10 +369,12 @@ atta-types (shared domain types, error enums, traits: ToolRegistry, NativeTool)
 
 | Metric | Value |
 |--------|-------|
-| Workspace crates | 20 |
-| Rust source files | 253 |
-| Lines of Rust | ~41,000 |
-| Test functions | 388 |
-| Native tools | 50+ |
+| Workspace crates | 16 |
+| Rust source files | 291 |
+| Lines of Rust | ~72,000 |
+| Test functions | 1,023 |
+| Native tools | 40+ |
+| Built-in skills | 12 |
+| Built-in flows | 6 |
 | Channel integrations | 22 |
-| Binary targets | 4 production + 3 fuzz |
+| Binary targets | 3 production + 3 fuzz |
